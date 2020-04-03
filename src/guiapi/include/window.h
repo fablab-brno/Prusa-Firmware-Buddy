@@ -18,6 +18,7 @@
 #define WINDOW_CLS_MENU     9   // MENU - menu
 #define WINDOW_CLS_MSGBOX   10  // MSGBOX - messagebox with configurable buttons and icon
 #define WINDOW_CLS_PROGRESS 11  // PROGRESS - progress bar with text
+#define WINDOW_CLS_QR       12  // QR - QR Code
 #define WINDOW_CLS_USER     128 // USER - user defined window classes (WINDOW_CLS_USER+n)
 
 //window flags
@@ -107,6 +108,8 @@ typedef struct _window_t {
 #ifdef __cplusplus
 extern "C" {
 #endif //__cplusplus
+
+extern window_t *window_popup_ptr; //current popup window
 
 extern window_t *window_focused_ptr; //current focused window
 

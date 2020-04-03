@@ -14,6 +14,7 @@
 #include "filament.h"
 #include "screen_printing.h"
 #include "marlin_server.h"
+#include "print_utils.h"
 
 #include "ffconf.h"
 
@@ -25,8 +26,10 @@
     #include "filament_sensor.h"
 #endif
 
+extern "C" {
 extern screen_t *pscreen_home;
 extern screen_t *pscreen_menu_tune;
+}
 
 #define COLOR_VALUE_VALID COLOR_WHITE
 //#define COLOR_VALUE_INVALID COLOR_YELLOW
@@ -627,9 +630,10 @@ void screen_printing_resume_print(screen_t *screen) {
 }
 
 void screen_printing_reprint(screen_t *screen) {
-    marlin_gcode_printf("M23 %s", screen_printing_file_path);
-    marlin_gcode("M24");
-    oProgressData.mInit();
+    //    marlin_gcode_printf("M23 %s", screen_printing_file_path);
+    //    marlin_gcode("M24");
+    //    oProgressData.mInit();
+    print_begin(screen_printing_file_path);
     window_set_text(pw->w_etime_label.win.id, PSTR("Remaining Time")); // !!! "screen_printing_init()" is not invoked !!!
 
     window_set_text(pw->w_labels[BUTTON_STOP].win.id, printing_labels[iid_stop]);

@@ -7,7 +7,7 @@
 #include "dbg.h"
 #include "adc.h"
 #include "jogwheel.h"
-#include "hwio_a3ides.h"
+#include "hwio.h"
 #include "sys.h"
 #include "gpio.h"
 
@@ -25,10 +25,13 @@
 #include "eeprom.h"
 #include "diag.h"
 #include "safe_state.h"
+#include "crc32.h"
 
 #include <Arduino.h>
 #include "trinamic.h"
 #include "../Marlin/src/module/configuration_store.h"
+#include "../Marlin/src/module/temperature.h"
+#include "../Marlin/src/module/probe.h"
 
 #define DBG _dbg0 //debug level 0
 //#define DBG(...)  //disable debug
@@ -42,9 +45,9 @@ extern "C" {
 extern uartrxbuff_t uart6rxbuff; // PUT rx buffer
 extern uartslave_t uart6slave;   // PUT slave
 
-#ifdef ETHERNET
+#ifdef BUDDY_ENABLE_ETHERNET
 extern osThreadId webServerTaskHandle; // Webserver thread(used for fast boot mode)
-#endif                                 //ETHERNET
+#endif                                 //BUDDY_ENABLE_ETHERNET
 
 #ifndef _DEBUG
 extern IWDG_HandleTypeDef hiwdg; //watchdog handle
@@ -53,7 +56,11 @@ extern IWDG_HandleTypeDef hiwdg; //watchdog handle
 void app_setup(void) {
     setup();
 
-    init_tmc();
+    marlin_server_settings_load(); // load marlin variables from eeprom
+
+    if (INIT_TRINAMIC_FROM_MARLIN_ONLY == 0) {
+        init_tmc();
+    }
     //DBG("after init_tmc (%ld ms)", HAL_GetTick());
 }
 
@@ -64,10 +71,12 @@ void app_idle(void) {
 void app_run(void) {
     DBG("app_run");
 
-#ifdef ETHERNET
+#ifdef BUDDY_ENABLE_ETHERNET
     if (diag_fastboot)
         osThreadResume(webServerTaskHandle);
-#endif //ETHERNET
+#endif //BUDDY_ENABLE_ETHERNET
+
+    crc32_init();
 
     uint8_t defaults_loaded = eeprom_init();
 
@@ -90,7 +99,9 @@ void app_run(void) {
                 hwio_fan_set_pwm(i, 0); // disable fans
         }
         reset_trinamic_drivers();
-        init_tmc();
+        if (INIT_TRINAMIC_FROM_MARLIN_ONLY == 0) {
+            init_tmc();
+        }
     } else
         app_setup();
     //DBG("after setup (%ld ms)", HAL_GetTick());

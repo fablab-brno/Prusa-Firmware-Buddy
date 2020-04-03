@@ -42,7 +42,9 @@
 #include "main.h"
 #include "cmsis_os.h"
 #include "fatfs.h"
-#include "lwip.h"
+#ifdef BUDDY_ENABLE_WUI
+    #include "wui.h"
+#endif
 #include "usb_device.h"
 #include "usb_host.h"
 
@@ -52,8 +54,8 @@
 #include "dbg.h"
 #include "diag.h"
 #include "timer_defaults.h"
-#include "lwsapi.h" // for lwsapi_init function
 #include "thread_measurement.h"
+#include "Z_probe.h"
 
 /* USER CODE END Includes */
 
@@ -96,7 +98,6 @@ DMA_HandleTypeDef hdma_usart6_rx;
 
 osThreadId defaultTaskHandle;
 osThreadId displayTaskHandle;
-osThreadId idleTaskHandle;
 osThreadId webServerTaskHandle;
 /* USER CODE BEGIN PV */
 int HAL_IWDG_Reset = 0;
@@ -124,8 +125,6 @@ static void MX_TIM2_Init(void);
 static void MX_TIM14_Init(void);
 void StartDefaultTask(void const *argument);
 void StartDisplayTask(void const *argument);
-void StartIdleTask(void const *argument);
-void StartWebServerTask(void const *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -151,6 +150,8 @@ char uart6slave_line[32];
 volatile uint32_t Tacho_FAN0;
 volatile uint32_t Tacho_FAN1;
 
+static volatile uint32_t minda_falling_edges = 0;
+uint32_t get_Z_probe_endstop_hits() { return minda_falling_edges; }
 /* USER CODE END 0 */
 
 /**
@@ -253,13 +254,11 @@ int main(void) {
     osThreadDef(displayTask, StartDisplayTask, osPriorityNormal, 0, 2048);
     displayTaskHandle = osThreadCreate(osThread(displayTask), NULL);
 
-    /* definition and creation of idleTask */
-    osThreadDef(idleTask, StartIdleTask, osPriorityIdle, 0, 128);
-    idleTaskHandle = osThreadCreate(osThread(idleTask), NULL);
-
+#ifdef BUDDY_ENABLE_WUI
     /* definition and creation of webServerTask */
-    osThreadDef(webServerTask, StartWebServerTask, osPriorityNormal, 0, 512);
+    osThreadDef(webServerTask, StartWebServerTask, osPriorityNormal, 0, BUDDY_WEB_STACK_SIZE);
     webServerTaskHandle = osThreadCreate(osThread(webServerTask), NULL);
+#endif
 
     /* USER CODE BEGIN RTOS_THREADS */
     /* add threads, ... */
@@ -892,7 +891,7 @@ static void MX_GPIO_Init(void) {
 
     /*Configure GPIO pin : Z_MIN_Pin */
     GPIO_InitStruct.Pin = Z_MIN_Pin;
-    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+    GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
     GPIO_InitStruct.Pull = GPIO_PULLUP;
     HAL_GPIO_Init(Z_MIN_GPIO_Port, &GPIO_InitStruct);
 
@@ -909,6 +908,9 @@ static void MX_GPIO_Init(void) {
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
     /* EXTI interrupt init*/
+    HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
     HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
     HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 }
@@ -935,6 +937,9 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
         break;
     case GPIO_PIN_14:
         Tacho_FAN0++;
+        break;
+    case Z_MIN_Pin:
+        ++minda_falling_edges;
         break;
     }
 }
@@ -985,41 +990,6 @@ void StartDisplayTask(void const *argument) {
         osDelay(1);
     }
     /* USER CODE END StartDisplayTask */
-}
-
-/* USER CODE BEGIN Header_StartIdleTask */
-/**
-* @brief Function implementing the idleTask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartIdleTask */
-void StartIdleTask(void const *argument) {
-    /* USER CODE BEGIN StartIdleTask */
-    /* Infinite loop */
-    for (;;) {
-        osDelay(1);
-    }
-    /* USER CODE END StartIdleTask */
-}
-
-/* USER CODE BEGIN Header_StartWebServerTask */
-/**
-* @brief Function implementing the webServerTask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartWebServerTask */
-void StartWebServerTask(void const *argument) {
-    /* USER CODE BEGIN StartWebServerTask */
-    // osThreadSuspend(0);
-    MX_LWIP_Init();
-    lwsapi_init();
-    /* Infinite loop */
-    for (;;) {
-        osDelay(1);
-    }
-    /* USER CODE END StartWebServerTask */
 }
 
 /**
